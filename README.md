@@ -8,22 +8,23 @@ step, no backend, and no paid APIs.
 
 ## Features
 
-Phase 1 (current):
+Phase 2 (current):
 
 - Detect GitHub repository pages using authoritative `meta` tags, with a URL
   fallback.
-- Locate the rendered README through layered, GitHub-specific selectors.
-- Fall back to GitHub's embedded React JSON when the README element is not yet
-  hydrated.
+- Locate the rendered README through layered, GitHub-specific selectors, with an
+  embedded React JSON fallback.
 - Extract only the README content (not navigation, sidebars, or file listings)
   and report stats such as word, heading, and image counts.
-- Popup ↔ content script messaging using `chrome.tabs.sendMessage` /
-  `chrome.runtime.onMessage`.
-- Graceful, descriptive errors for every unsupported case.
+- Sanitize the imported HTML before it enters the print document.
+- Render the README in a dedicated print page and open the browser's native
+  print dialog, where **Save as PDF** produces the file.
+- Print styles for typography, code blocks, tables, images, and page breaks.
+- Sensible default filename such as `owner-repository-readme.pdf`.
 
 Planned:
 
-- Generate a clean, print-ready PDF with sensible typography.
+- Optional theme/styling settings and batch export.
 
 ## Project structure
 
@@ -37,8 +38,11 @@ readme-to-pdf/
 │   └── popup.js           # Popup logic
 ├── scripts/
 │   └── content.js         # Repo detection + README extraction (content script)
+├── print/
+│   ├── print.html         # Print document (extension page)
+│   └── print.js           # Sanitize, render, and call window.print()
 └── styles/
-    └── print.css          # Reserved for print/PDF styling
+    └── print.css          # Print document + print media styles
 ```
 
 ## Installation (Load unpacked)
@@ -61,9 +65,12 @@ extension card in `chrome://extensions`.
 2. Click the **README to PDF** icon in the toolbar. The popup reports whether a
    README was detected.
 3. Click **Export README to PDF**.
+4. A print preview opens in a new tab. In the dialog, choose **Save as PDF** as
+   the destination and save the file.
 
-In Phase 1 the button confirms detection and shows a placeholder message. PDF
-export is added in a later phase.
+The extension uses the browser's native print dialog, so the PDF is produced by
+Chrome (not silently by the extension) and the filename defaults to
+`owner-repository-readme.pdf`.
 
 ## How detection works
 
@@ -83,16 +90,57 @@ export is added in a later phase.
 5. **Graceful failure:** if the DOM changes, the extension reports that it could
    not find the README instead of exporting the wrong content.
 
+## How export works
+
+1. The popup asks the content script for the README payload (Phase 1).
+2. The popup writes the payload to `chrome.storage.local` and opens the
+   extension's print page in a new tab.
+3. The print page reads the payload, sanitizes the HTML, and renders only the
+   README.
+4. It waits (briefly) for images, then calls `window.print()` from its own
+   page context, opening the print dialog. A service worker cannot call
+   `window.print()`, which is why a dedicated page is used.
+
+## HTML sanitization
+
+The print document never trusts the README HTML:
+
+- Only an allowlist of content tags is kept; unknown tags are unwrapped and
+  dangerous tags (`script`, `style`, `iframe`, `object`, `embed`, …) are removed
+  with their contents.
+- Event handler attributes (`on*`), `style`, `class`, and `id` are stripped.
+- Only `href`/`src` values with `http`, `https`, `mailto`, `tel`, or fragment
+  protocols are kept; `javascript:`, `data:`, and similar are dropped.
+- No inline scripts or `eval` are used anywhere; the extension follows the
+  Manifest V3 content security policy.
+
 ## Development roadmap
 
 - **Phase 0 — Setup:** project structure, manifest, popup UI, placeholder logic.
 - **Phase 1 — Detection & extraction:** identify repo pages and the rendered
-  README (current).
-- **Phase 2 — Styling:** apply print styles from `styles/print.css` to the
-  extracted README.
-- **Phase 3 — PDF generation:** render the cleaned content to a downloadable
-  PDF.
-- **Phase 4 — Polish:** error handling, edge cases, and UX improvements.
+  README.
+- **Phase 2 — Export via native print:** sanitize, render a print document, and
+  produce a PDF through the browser's print dialog (current).
+- **Phase 3 — Polish:** theme settings, batch export, and further edge cases.
+
+## Testing Phase 2
+
+1. **Print preview opens:** on a repository with a README, click
+   **Export README to PDF** → a new tab shows the README and the print dialog
+   opens.
+2. **Save as PDF is readable:** choose **Save as PDF**; the resulting file shows
+   the README with headings, lists, links, tables, and code blocks.
+3. **Multiple pages:** export a long README (`https://github.com/torvalds/linux`)
+   → formatting survives page breaks.
+4. **Code blocks and tables:** confirm code wraps/prints cleanly and tables fit
+   the page width.
+5. **Images:** wide images scale to the page; broken images show an
+   `[Image: alt]` placeholder instead of breaking the export.
+6. **Failed extraction:** try on a non-repo or no-README page → the popup shows
+   an error and no print tab opens.
+7. **Original page intact:** the GitHub tab is unchanged and still usable.
+8. **No script execution:** a README containing raw HTML/scripts cannot execute
+   code in the print document.
 
 ## Testing Phase 1
 
@@ -125,12 +173,13 @@ Manual checks:
 3. **Popup errors:** open the popup and check DevTools (right-click the popup →
    **Inspect**) for a clean console.
 4. **Button responds:** click **Export README to PDF** on a GitHub repo page
-   (expect the placeholder message) and on a non-repo page (expect the guidance
+   (expect the print preview tab) and on a non-repo page (expect the guidance
    error message).
 
 ## Permissions
 
 - `activeTab` — read the active tab's URL to confirm you are on GitHub.
+- `storage` — pass the README payload from the popup to the print document.
 - Content script match on `https://github.com/*` — runs the content script on
   GitHub so the popup can request README detection.
 

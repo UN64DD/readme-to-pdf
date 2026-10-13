@@ -1,15 +1,22 @@
 // Popup logic for README to PDF.
 //
-// Phase 1: ask the content script to detect and describe the README, then show
-// a helpful status message. No PDF generation yet.
+// Phase 2: reuse the Phase 1 detection, stash the README payload in
+// chrome.storage, and open the print document, which runs window.print() from
+// its own context.
 
 // Must match the constant in scripts/content.js.
 const MESSAGE_GET_README = "readme-to-pdf:get-readme";
+// Must match the constant in print/print.js.
+const EXPORT_KEY = "readme-to-pdf:export";
+const PRINT_PAGE = "print/print.html";
 const GITHUB_URL_PATTERN = /^https:\/\/github\.com\//;
 
 const exportButton = document.getElementById("export-button");
 const statusEl = document.getElementById("status");
 const STATUS_CLASSES = ["status--success", "status--error"];
+
+// Guards against overlapping exports triggered by rapid clicks.
+let isExporting = false;
 
 /**
  * Update the status area with a message and optional tone.
@@ -37,6 +44,32 @@ async function getActiveTab() {
   } catch {
     return null;
   }
+}
+
+/** Persist the export payload for the print document to read. */
+function savePayload(payload) {
+  return new Promise((resolve, reject) => {
+    chrome.storage.local.set({ [EXPORT_KEY]: payload }, () => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
+      }
+      resolve();
+    });
+  });
+}
+
+/** Open the print document in a new tab. */
+function openPrintTab() {
+  return new Promise((resolve, reject) => {
+    chrome.tabs.create({ url: chrome.runtime.getURL(PRINT_PAGE) }, (tab) => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
+      }
+      resolve(tab);
+    });
+  });
 }
 
 /**
@@ -128,16 +161,39 @@ function reportResult(result) {
 }
 
 async function handleExportClick() {
+  if (isExporting) return;
+  isExporting = true;
   setBusy(true);
-  setStatus("Checking this page...");
-  const result = await detectReadme();
-  setBusy(false);
+  setStatus("Reading README...");
 
-  if (reportResult(result)) {
+  try {
+    const result = await detectReadme();
+    if (!reportResult(result)) return; // an error message is already shown
+
+    const { repo, readme } = result;
+    if (!readme.html || !readme.html.trim() || !readme.text.trim()) {
+      setStatus("The README appears to be empty.", "error");
+      return;
+    }
+
+    const tab = await getActiveTab();
+    setStatus("Opening print preview...");
+    await savePayload({
+      repo,
+      readme,
+      sourceUrl: tab && tab.url ? tab.url : null,
+      createdAt: Date.now(),
+    });
+    await openPrintTab();
     setStatus(
-      "README is ready. PDF export arrives in the next phase.",
+      "Print preview opened. Choose 'Save as PDF' in the dialog.",
       "success"
     );
+  } catch {
+    setStatus("Couldn't start the export. Please try again.", "error");
+  } finally {
+    isExporting = false;
+    setBusy(false);
   }
 }
 

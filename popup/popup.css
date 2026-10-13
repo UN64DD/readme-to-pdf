@@ -102,3 +102,15 @@ body {
   color: var(--error);
   border-color: rgba(207, 34, 46, 0.4);
 }
+
+.popup__hint {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
+.popup__hint strong {
+  font-weight: 600;
+  color: var(--text);
+}

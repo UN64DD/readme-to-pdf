@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>README to PDF</title>
+    <link rel="stylesheet" href="../styles/print.css" />
+  </head>
+  <body class="print-doc">
+    <!-- Non-printing toolbar with workflow instructions. -->
+    <div class="toolbar" id="toolbar">
+      <div class="toolbar__info">
+        <strong>README to PDF</strong>
+        <span>
+          In the print dialog, choose <em>Save as PDF</em> as the destination.
+        </span>
+      </div>
+      <button id="print-button" class="toolbar__button" type="button">
+        Print / Save as PDF
+      </button>
+    </div>
+
+    <main class="page">
+      <header class="page__header" id="doc-header" hidden></header>
+      <article class="readme" id="content"></article>
+      <p class="page__error" id="error" role="alert" hidden></p>
+    </main>
+
+    <script src="print.js"></script>
+  </body>
+</html>
