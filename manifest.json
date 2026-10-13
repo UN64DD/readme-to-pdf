@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "README to PDF",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Export a GitHub repository's rendered README to a clean, printable PDF.",
   "action": {
     "default_title": "README to PDF",
@@ -10,7 +10,7 @@
   "permissions": ["activeTab"],
   "content_scripts": [
     {
-      "matches": ["https://github.com/*/*"],
+      "matches": ["https://github.com/*"],
       "js": ["scripts/content.js"],
       "run_at": "document_idle"
     }

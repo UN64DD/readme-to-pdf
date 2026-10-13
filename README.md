@@ -8,16 +8,21 @@ step, no backend, and no paid APIs.
 
 ## Features
 
-Phase 0 (current):
+Phase 1 (current):
 
-- Popup UI with an **Export README to PDF** button and a status area.
-- Context-aware messaging based on the active tab.
-- Manifest V3 configuration with minimal permissions.
-- Content script placeholder wired up for GitHub repository pages.
+- Detect GitHub repository pages using authoritative `meta` tags, with a URL
+  fallback.
+- Locate the rendered README through layered, GitHub-specific selectors.
+- Fall back to GitHub's embedded React JSON when the README element is not yet
+  hydrated.
+- Extract only the README content (not navigation, sidebars, or file listings)
+  and report stats such as word, heading, and image counts.
+- Popup ↔ content script messaging using `chrome.tabs.sendMessage` /
+  `chrome.runtime.onMessage`.
+- Graceful, descriptive errors for every unsupported case.
 
 Planned:
 
-- Extract the rendered README from the active GitHub page.
 - Generate a clean, print-ready PDF with sensible typography.
 
 ## Project structure
@@ -31,7 +36,7 @@ readme-to-pdf/
 │   ├── popup.css          # Popup styles
 │   └── popup.js           # Popup logic
 ├── scripts/
-│   └── content.js         # Content script (GitHub pages)
+│   └── content.js         # Repo detection + README extraction (content script)
 └── styles/
     └── print.css          # Reserved for print/PDF styling
 ```
@@ -51,23 +56,62 @@ extension card in `chrome://extensions`.
 ## Usage
 
 1. Open any GitHub repository page, for example
-   `https://github.com/user/repo`.
-2. Click the **README to PDF** icon in the toolbar.
+   `https://github.com/user/repo` or
+   `https://github.com/user/repo/tree/main`.
+2. Click the **README to PDF** icon in the toolbar. The popup reports whether a
+   README was detected.
 3. Click **Export README to PDF**.
 
-In Phase 0 the button validates that you are on a GitHub repository and shows a
-placeholder message. PDF export is added in a later phase.
+In Phase 1 the button confirms detection and shows a placeholder message. PDF
+export is added in a later phase.
+
+## How detection works
+
+1. **Repository check:** GitHub writes `octolytics-dimension-repository_nwo` into
+   a `<meta>` tag on repository pages. If that is missing, the URL is parsed as a
+   fallback, ignoring GitHub's own reserved paths (`settings`, `marketplace`,
+   etc.).
+2. **README lookup:** an ordered list of selectors is tried, from most to least
+   specific. Generic selectors only run on overview pages (repo root and `tree`
+   views) so a rendered markdown file on a `blob` page is never mistaken for the
+   README.
+3. **Embedded fallback:** GitHub's React app embeds the rendered README as JSON.
+   When the live element is not ready, that HTML is used instead.
+4. **Extraction:** only the README element is cloned and cleaned. The popup
+   receives a compact representation (cleaned HTML, plain text, and stats), never
+   the full page HTML.
+5. **Graceful failure:** if the DOM changes, the extension reports that it could
+   not find the README instead of exporting the wrong content.
 
 ## Development roadmap
 
 - **Phase 0 — Setup:** project structure, manifest, popup UI, placeholder logic.
-- **Phase 1 — README detection:** detect the README element on the active page
-  and report availability in the popup.
-- **Phase 2 — Extraction & styling:** clone and clean the README content and
-  apply print styles from `styles/print.css`.
+- **Phase 1 — Detection & extraction:** identify repo pages and the rendered
+  README (current).
+- **Phase 2 — Styling:** apply print styles from `styles/print.css` to the
+  extracted README.
 - **Phase 3 — PDF generation:** render the cleaned content to a downloadable
   PDF.
 - **Phase 4 — Polish:** error handling, edge cases, and UX improvements.
+
+## Testing Phase 1
+
+Manual checks (see also the Phase 0 checks):
+
+1. **README with headings, lists, links, code blocks:**
+   `https://github.com/sindresorhus/github-markdown-css` → status shows the
+   README path and stats.
+2. **Tables and images:** any README with tables/badges → image and table counts
+   appear in the status.
+3. **Long README:** `https://github.com/torvalds/linux` → large word count is
+   reported without freezing the popup.
+4. **No README:** a repository without a README → "This repository does not have
+   a README."
+5. **Non-repository GitHub page:** `https://github.com/settings/profile` or a
+   topic page → "This GitHub page is not a repository."
+6. **Non-GitHub page:** any other site → "Open a GitHub repository page..."
+7. **Dynamic navigation:** navigate between repositories using GitHub's
+   client-side links, then reopen the popup → the status reflects the new repo.
 
 ## Testing Phase 0
 
@@ -86,10 +130,9 @@ Manual checks:
 
 ## Permissions
 
-- `activeTab` — read the active tab's URL to confirm you are on a GitHub
-  repository page.
-- Content script match on `https://github.com/*/*` — runs the (placeholder)
-  content script on repository pages.
+- `activeTab` — read the active tab's URL to confirm you are on GitHub.
+- Content script match on `https://github.com/*` — runs the content script on
+  GitHub so the popup can request README detection.
 
 ## License
 
