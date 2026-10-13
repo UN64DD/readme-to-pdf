@@ -31,12 +31,19 @@ Built with plain HTML, CSS, and vanilla JavaScript.
 
 ## Screenshots
 
-_Screenshots to be added._ The popup, the print preview, and a sample exported
-PDF will be documented here for the Chrome Web Store listing.
+The popup (with settings), the print preview in light and dark themes, and a
+sample exported PDF.
 
-![Popup]() <!-- placeholder: popup/popup.png -->
-![Print preview]() <!-- placeholder: print/preview.png -->
-![Sample PDF]() <!-- placeholder: print/sample.pdf.png -->
+![Popup](screenshots/popup.png)
+
+![Print preview — light](screenshots/preview-light.png)
+
+![Print preview — dark](screenshots/preview-dark.png)
+
+![Sample PDF](screenshots/sample-pdf-preview.png)
+
+The full sample document is at [screenshots/sample.pdf](screenshots/sample.pdf)
+(A4, exported through Chrome's native print pipeline).
 
 ## Installation (from source)
 
@@ -70,6 +77,9 @@ step.
 readme-to-pdf/
 ├── manifest.json          # Manifest V3 configuration
 ├── README.md              # This file
+├── LICENSE                # MIT license
+├── icons/                 # Extension icons (16/32/48/128 px PNG)
+├── screenshots/           # Popup, preview, and sample PDF for the store
 ├── popup/
 │   ├── popup.html         # Popup markup
 │   ├── popup.css          # Popup styles
@@ -153,8 +163,6 @@ The print document never trusts README HTML:
   extension reports it cannot find it.
 - **GitHub DOM changes**: if GitHub changes its markup, the selectors in
   `scripts/content.js` (the `GITHUB` config) may need updating.
-- **No icons yet**: extensions icons will be added before a Chrome Web Store
-  submission.
 
 ## Manual testing checklist
 
@@ -208,10 +216,10 @@ The print document never trusts README HTML:
 - **Phase 2 — Export via native print** · sanitize, render a print document,
   produce a PDF through the browser. (done)
 - **Phase 3 — Polish** · settings, themes, paper sizes, status reporting,
-  accessibility, docs. (current)
-- **Phase 4 — Release prep** · extension icons, Chrome Web Store assets,
-  automated tests, and further edge cases.
+  accessibility, docs. (done)
+- **Phase 4 — Release prep** · extension icons (16–128 px), screenshots, sample
+  PDF, distribution/docs. (in progress)
 
 ## License
 
-License to be decided before the Chrome Web Store submission (see Roadmap).
+[MIT](LICENSE) — Copyright (c) 2026 README to PDF contributors.
