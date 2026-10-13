@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "README to PDF",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Export a GitHub repository's rendered README to a clean, printable PDF.",
   "action": {
     "default_title": "README to PDF",

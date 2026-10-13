@@ -5,7 +5,7 @@
   --text: #1f2328;
   --text-muted: #59636e;
   --accent: #0969da;
-  --accent-hover: #0a5cc0;
+  --accent-hover: #0853a8;
   --success: #1a7f37;
   --error: #cf222e;
 }
@@ -24,7 +24,7 @@ body {
 }
 
 .popup {
-  width: 300px;
+  width: 320px;
   padding: 16px;
   display: flex;
   flex-direction: column;
@@ -50,6 +50,8 @@ body {
   color: var(--text-muted);
 }
 
+/* ------------------------------- Buttons -------------------------------- */
+
 .button {
   width: 100%;
   padding: 9px 12px;
@@ -67,7 +69,10 @@ body {
   background: var(--accent-hover);
 }
 
-.button:focus-visible {
+.button:focus-visible,
+.field__control:focus-visible,
+.field__checkbox input:focus-visible,
+.settings__summary:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
@@ -81,9 +86,23 @@ body {
   cursor: not-allowed;
 }
 
+.button--secondary {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text);
+  background: var(--surface);
+  border-color: var(--border);
+}
+
+.button--secondary:hover {
+  background: var(--border);
+}
+
+/* -------------------------------- Status -------------------------------- */
+
 .status {
   margin: 0;
-  min-height: 18px;
+  min-height: 34px;
   padding: 8px;
   font-size: 12px;
   line-height: 1.4;
@@ -102,6 +121,89 @@ body {
   color: var(--error);
   border-color: rgba(207, 34, 46, 0.4);
 }
+
+/* ------------------------------- Settings ------------------------------- */
+
+.settings {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.settings__summary {
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  cursor: pointer;
+  list-style: none;
+}
+
+.settings__summary::-webkit-details-marker {
+  display: none;
+}
+
+.settings__summary::before {
+  content: "»";
+  margin-right: 6px;
+  color: var(--text-muted);
+}
+
+.settings[open] .settings__summary::before {
+  content: "v";
+}
+
+.settings__body {
+  padding: 0 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.field__label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.field__control {
+  width: 100%;
+  padding: 6px 8px;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.field--checkbox {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.field--checkbox input {
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.settings__note {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
+/* --------------------------------- Hint -------------------------------- */
 
 .popup__hint {
   margin: 0;

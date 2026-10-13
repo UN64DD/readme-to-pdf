@@ -23,9 +23,48 @@
         Open a GitHub repository to get started.
       </p>
 
+      <details class="settings" id="settings">
+        <summary class="settings__summary">Export settings</summary>
+        <div class="settings__body">
+          <div class="field">
+            <label class="field__label" for="paper-size">Paper size</label>
+            <select class="field__control" id="paper-size">
+              <option value="a4">A4</option>
+              <option value="letter">Letter</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label class="field__label" for="theme">Theme</label>
+            <select class="field__control" id="theme">
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+            </select>
+          </div>
+
+          <label class="field field--checkbox" for="include-title">
+            <input type="checkbox" id="include-title" />
+            <span>Include title header</span>
+          </label>
+
+          <button
+            id="reset-settings"
+            class="button button--secondary"
+            type="button"
+          >
+            Reset to defaults
+          </button>
+
+          <p class="settings__note">
+            Dark-theme PDFs require <em>Background graphics</em> to be enabled in
+            the print dialog.
+          </p>
+        </div>
+      </details>
+
       <p class="popup__hint">
-        A print preview opens in a new tab. In the dialog, set the destination
-        to <strong>Save as PDF</strong>, then save.
+        A print preview opens in a new tab. In the dialog, choose
+        <strong>Save as PDF</strong> to finish.
       </p>
     </main>
 

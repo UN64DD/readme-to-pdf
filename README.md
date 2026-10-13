@@ -1,30 +1,68 @@
 # README to PDF
 
-A lightweight Chrome extension (Manifest V3) that lets you export a GitHub
-repository's rendered README as a clean, printable PDF.
+A lightweight Chrome extension (Manifest V3) that exports a GitHub repository's
+rendered README as a clean, printable PDF — using only the browser's own print
+dialog, with no backend, no paid APIs, and no build step.
 
-Built with plain HTML, CSS, and vanilla JavaScript. No frameworks, no build
-step, no backend, and no paid APIs.
+Built with plain HTML, CSS, and vanilla JavaScript.
 
 ## Features
 
-Phase 2 (current):
+- **One-click export** from any GitHub repository page to a print-ready document.
+- **Native printing**: the extension prepares a dedicated print page and opens
+  Chrome's print dialog, where **Save as PDF** produces the file. The PDF is
+  created by the browser, not silently by the extension.
+- **Reliable README detection** using GitHub's authoritative `<meta>` tags, an
+  ordered list of DOM selectors, and a fallback to GitHub's embedded React JSON.
+- **Only the README is exported** — no navigation, file listings, sidebars, or
+  comments.
+- **Export settings**:
+  - Paper size: **A4** or **Letter**.
+  - Theme: **Light** or **Dark** (with `prefers-color-scheme`-friendly colors;
+    dark PDFs need "Background graphics" enabled in the print dialog).
+  - Optional title header (repository name, path, and source link).
+  - Settings persist via `chrome.storage.sync` and can be reset to defaults.
+- **Safe by default**: README HTML is sanitized with a strict tag/attribute
+  allowlist before it is rendered. Scripts, event handlers, and unsafe URLs
+  never reach the document.
+- **Accessible UI**: keyboard-accessible controls, visible focus states, and
+  aria-live status reporting.
+- **Sane filenames** such as `owner-repository-readme.pdf`.
 
-- Detect GitHub repository pages using authoritative `meta` tags, with a URL
-  fallback.
-- Locate the rendered README through layered, GitHub-specific selectors, with an
-  embedded React JSON fallback.
-- Extract only the README content (not navigation, sidebars, or file listings)
-  and report stats such as word, heading, and image counts.
-- Sanitize the imported HTML before it enters the print document.
-- Render the README in a dedicated print page and open the browser's native
-  print dialog, where **Save as PDF** produces the file.
-- Print styles for typography, code blocks, tables, images, and page breaks.
-- Sensible default filename such as `owner-repository-readme.pdf`.
+## Screenshots
 
-Planned:
+_Screenshots to be added._ The popup, the print preview, and a sample exported
+PDF will be documented here for the Chrome Web Store listing.
 
-- Optional theme/styling settings and batch export.
+![Popup]() <!-- placeholder: popup/popup.png -->
+![Print preview]() <!-- placeholder: print/preview.png -->
+![Sample PDF]() <!-- placeholder: print/sample.pdf.png -->
+
+## Installation (from source)
+
+1. Open Chrome and navigate to `chrome://extensions`.
+2. Enable **Developer mode** using the toggle in the top-right corner.
+3. Click **Load unpacked**.
+4. Select the project folder (the one containing `manifest.json`).
+5. The extension appears in the list. Pin it to the toolbar for quick access.
+
+After editing source files, click the **reload** icon on the extension card in
+`chrome://extensions`.
+
+This project has **no dependencies** — no `npm install`, no bundler, no build
+step.
+
+## How to use
+
+1. Open a GitHub repository page, e.g. `https://github.com/user/repo` or
+   `https://github.com/user/repo/tree/main`.
+2. Click the **README to PDF** icon in the toolbar. The popup reports whether a
+   README was found.
+3. Optionally adjust **Export settings** (paper size, theme, title header).
+4. Click **Export README to PDF**.
+5. A print preview opens in a new tab and the print dialog appears. Set the
+   destination to **Save as PDF** and save. The suggested filename is
+   `owner-repository-readme.pdf`.
 
 ## Project structure
 
@@ -35,154 +73,145 @@ readme-to-pdf/
 ├── popup/
 │   ├── popup.html         # Popup markup
 │   ├── popup.css          # Popup styles
-│   └── popup.js           # Popup logic
+│   └── popup.js           # Detection, settings, and export flow
 ├── scripts/
 │   └── content.js         # Repo detection + README extraction (content script)
 ├── print/
 │   ├── print.html         # Print document (extension page)
-│   └── print.js           # Sanitize, render, and call window.print()
+│   └── print.js           # Sanitize, render, apply settings, call window.print()
 └── styles/
     └── print.css          # Print document + print media styles
 ```
 
-## Installation (Load unpacked)
+## Technical architecture
 
-1. Open Chrome and navigate to `chrome://extensions`.
-2. Enable **Developer mode** using the toggle in the top-right corner.
-3. Click **Load unpacked**.
-4. Select the `readme-to-pdf` project folder (the one containing
-   `manifest.json`).
-5. The extension appears in the list. Pin it to the toolbar for quick access.
+### Data flow
 
-To apply changes after editing files, click the **reload** icon on the
-extension card in `chrome://extensions`.
+1. The popup asks the content script for the README via
+   `chrome.tabs.sendMessage` / `chrome.runtime.onMessage`.
+2. The content script detects the repository (meta tags, then URL), locates the
+   rendered README (layered selectors, then embedded JSON), and returns a
+   compact payload: cleaned HTML, plain text, and stats. The full page HTML is
+   never sent.
+3. The popup writes the payload plus the user's export settings to
+   `chrome.storage.local` and opens `print/print.html` in a new tab.
+4. The print page reads the payload, applies paper size/theme, sanitizes the
+   HTML, and renders only the README.
+5. After images settle, it calls `window.print()` from its own page context.
+   A service worker cannot call `window.print()`, which is why a dedicated
+   extension page is used.
 
-## Usage
+### Detection
 
-1. Open any GitHub repository page, for example
-   `https://github.com/user/repo` or
-   `https://github.com/user/repo/tree/main`.
-2. Click the **README to PDF** icon in the toolbar. The popup reports whether a
-   README was detected.
-3. Click **Export README to PDF**.
-4. A print preview opens in a new tab. In the dialog, choose **Save as PDF** as
-   the destination and save the file.
+- `octolytics-dimension-repository_nwo` and `hovercard-subject-tag` meta tags
+  identify repository pages; a URL parse (excluding GitHub's reserved paths)
+  is the fallback.
+- README selectors run from most to least specific (`#readme article.markdown-body`,
+  `[data-testid="readme"] .markdown-body`, `article.markdown-body.entry-content`,
+  …). Generic selectors only run on overview pages (`/`, `/tree/…`) so a
+  rendered markdown file on a `/blob/` page is never mistaken for a README.
+- GitHub's React app embeds the rendered README in
+  `script[data-target="react-app.embeddedData"]`; that HTML is used when the
+  live element is not ready.
+- Unknown DOM structures fail gracefully with a clear message instead of
+  exporting the wrong content.
 
-The extension uses the browser's native print dialog, so the PDF is produced by
-Chrome (not silently by the extension) and the filename defaults to
-`owner-repository-readme.pdf`.
+### Sanitization
 
-## How detection works
+The print document never trusts README HTML:
 
-1. **Repository check:** GitHub writes `octolytics-dimension-repository_nwo` into
-   a `<meta>` tag on repository pages. If that is missing, the URL is parsed as a
-   fallback, ignoring GitHub's own reserved paths (`settings`, `marketplace`,
-   etc.).
-2. **README lookup:** an ordered list of selectors is tried, from most to least
-   specific. Generic selectors only run on overview pages (repo root and `tree`
-   views) so a rendered markdown file on a `blob` page is never mistaken for the
-   README.
-3. **Embedded fallback:** GitHub's React app embeds the rendered README as JSON.
-   When the live element is not ready, that HTML is used instead.
-4. **Extraction:** only the README element is cloned and cleaned. The popup
-   receives a compact representation (cleaned HTML, plain text, and stats), never
-   the full page HTML.
-5. **Graceful failure:** if the DOM changes, the extension reports that it could
-   not find the README instead of exporting the wrong content.
+- An allowlist of content tags is kept; unknown tags are unwrapped, and
+  dangerous tags (`script`, `style`, `iframe`, `object`, `embed`, `form`,
+  `svg`, …) are removed with their contents.
+- `on*` handlers, `style`, `class`, and `id` are stripped.
+- Only `http`, `https`, `mailto`, `tel`, and fragment URL protocols are kept;
+  `javascript:`, `data:`, and `blob:` are dropped.
+- No inline scripts or `eval` anywhere; the extension follows Manifest V3 CSP.
 
-## How export works
+### Permissions
 
-1. The popup asks the content script for the README payload (Phase 1).
-2. The popup writes the payload to `chrome.storage.local` and opens the
-   extension's print page in a new tab.
-3. The print page reads the payload, sanitizes the HTML, and renders only the
-   README.
-4. It waits (briefly) for images, then calls `window.print()` from its own
-   page context, opening the print dialog. A service worker cannot call
-   `window.print()`, which is why a dedicated page is used.
+- `activeTab` — read the active tab's URL to confirm the page is GitHub.
+- `storage` — pass the export payload (local) and persist settings (sync) .
+- Content script match on `https://github.com/*` — runs detection on GitHub
+  pages only. No other hosts or capabilities are requested.
 
-## HTML sanitization
+## Known limitations
 
-The print document never trusts the README HTML:
+- **Native print dialog**: the extension cannot save a PDF automatically; the
+  user must choose **Save as PDF** in Chrome's dialog.
+- **Dark theme printing**: Chrome only prints background colors when
+  **Background graphics** is enabled. Without it, a dark-theme PDF may lose its
+  dark background. The page margins of the `@page` rule remain white.
+- **Page breaks**: break hints use `break-inside: avoid`, but the browser makes
+  the final decision. Very tall code blocks and tables may still split across
+  pages, and column widths are fixed to fit the page (cells wrap).
+- **Images**: external images load from their original hosts; images that fail
+  to load are replaced with an `[Image: alt]` placeholder. GitHub-hosted
+  (camo) images require an internet connection.
+- **README display only**: the extension targets the rendered repo overview.
+  On `/blob/`, issue, and pull-request pages the README is not rendered, and the
+  extension reports it cannot find it.
+- **GitHub DOM changes**: if GitHub changes its markup, the selectors in
+  `scripts/content.js` (the `GITHUB` config) may need updating.
+- **No icons yet**: extensions icons will be added before a Chrome Web Store
+  submission.
 
-- Only an allowlist of content tags is kept; unknown tags are unwrapped and
-  dangerous tags (`script`, `style`, `iframe`, `object`, `embed`, …) are removed
-  with their contents.
-- Event handler attributes (`on*`), `style`, `class`, and `id` are stripped.
-- Only `href`/`src` values with `http`, `https`, `mailto`, `tel`, or fragment
-  protocols are kept; `javascript:`, `data:`, and similar are dropped.
-- No inline scripts or `eval` are used anywhere; the extension follows the
-  Manifest V3 content security policy.
+## Manual testing checklist
 
-## Development roadmap
+### Popup and settings
 
-- **Phase 0 — Setup:** project structure, manifest, popup UI, placeholder logic.
-- **Phase 1 — Detection & extraction:** identify repo pages and the rendered
-  README.
-- **Phase 2 — Export via native print:** sanitize, render a print document, and
-  produce a PDF through the browser's print dialog (current).
-- **Phase 3 — Polish:** theme settings, batch export, and further edge cases.
+- [ ] Popup opens on any page without console errors.
+- [ ] On a non-GitHub page the status says the page is unsupported.
+- [ ] On a GitHub repository the status shows "Ready to export" with stats.
+- [ ] Paper size, theme, and title-header choices persist after reopening the
+      popup.
+- [ ] "Reset to defaults" restores A4 / Light / title included.
+- [ ] The export button is disabled while extraction runs and cannot be clicked
+      twice.
 
-## Testing Phase 2
+### Export output
 
-1. **Print preview opens:** on a repository with a README, click
-   **Export README to PDF** → a new tab shows the README and the print dialog
-   opens.
-2. **Save as PDF is readable:** choose **Save as PDF**; the resulting file shows
-   the README with headings, lists, links, tables, and code blocks.
-3. **Multiple pages:** export a long README (`https://github.com/torvalds/linux`)
-   → formatting survives page breaks.
-4. **Code blocks and tables:** confirm code wraps/prints cleanly and tables fit
-   the page width.
-5. **Images:** wide images scale to the page; broken images show an
-   `[Image: alt]` placeholder instead of breaking the export.
-6. **Failed extraction:** try on a non-repo or no-README page → the popup shows
-   an error and no print tab opens.
-7. **Original page intact:** the GitHub tab is unchanged and still usable.
-8. **No script execution:** a README containing raw HTML/scripts cannot execute
-   code in the print document.
+- [ ] A print preview opens in a new tab and the print dialog appears.
+- [ ] **A4** exports use A4; **Letter** exports use Letter.
+- [ ] **Light** and **dark** themes render correctly on screen and in the PDF
+      (dark requires "Background graphics").
+- [ ] "Include title header" off hides the repository title block.
+- [ ] Suggested filename is `owner-repository-readme.pdf`.
+- [ ] Filenames fall back gracefully when repository info is unavailable.
 
-## Testing Phase 1
+### Content and formatting
 
-Manual checks (see also the Phase 0 checks):
+- [ ] Headings, paragraphs, ordered/unordered lists, and checkbox lists look
+      right and keep correct hierarchy across pages.
+- [ ] Inline code and code blocks render; long lines wrap instead of clipping.
+- [ ] Wide tables fit the page width and cells wrap.
+- [ ] Images are scaled to the page; broken images show a placeholder.
+- [ ] Links are underlined/clickable in the PDF.
+- [ ] Blockquotes, horizontal rules, and figure captions render correctly.
+- [ ] A very long README (`https://github.com/torvalds/linux`) exports across
+      multiple pages without breaking the layout.
 
-1. **README with headings, lists, links, code blocks:**
-   `https://github.com/sindresorhus/github-markdown-css` → status shows the
-   README path and stats.
-2. **Tables and images:** any README with tables/badges → image and table counts
-   appear in the status.
-3. **Long README:** `https://github.com/torvalds/linux` → large word count is
-   reported without freezing the popup.
-4. **No README:** a repository without a README → "This repository does not have
-   a README."
-5. **Non-repository GitHub page:** `https://github.com/settings/profile` or a
-   topic page → "This GitHub page is not a repository."
-6. **Non-GitHub page:** any other site → "Open a GitHub repository page..."
-7. **Dynamic navigation:** navigate between repositories using GitHub's
-   client-side links, then reopen the popup → the status reflects the new repo.
+### Errors and resilience
 
-## Testing Phase 0
+- [ ] Exporting on a repo with no README shows an error and opens no print tab.
+- [ ] Exporting on a non-repository GitHub page shows an error.
+- [ ] Closing the print tab does not break the popup.
+- [ ] The original GitHub tab is untouched and usable after export.
+- [ ] A README containing raw HTML/scripts cannot execute code in the print
+      document (verified with headless-Chrome sanitizer assertions).
 
-Manual checks:
+## Roadmap
 
-1. **Manifest validity:** load the extension via
-   `chrome://extensions` → **Load unpacked**. It should load without errors.
-2. **File references:** confirm `popup/popup.html`, `popup/popup.css`,
-   `popup/popup.js`, and `scripts/content.js` all exist at the paths referenced
-   by `manifest.json`.
-3. **Popup errors:** open the popup and check DevTools (right-click the popup →
-   **Inspect**) for a clean console.
-4. **Button responds:** click **Export README to PDF** on a GitHub repo page
-   (expect the print preview tab) and on a non-repo page (expect the guidance
-   error message).
-
-## Permissions
-
-- `activeTab` — read the active tab's URL to confirm you are on GitHub.
-- `storage` — pass the README payload from the popup to the print document.
-- Content script match on `https://github.com/*` — runs the content script on
-  GitHub so the popup can request README detection.
+- **Phase 0 — Setup** · project structure, manifest, popup UI. (done)
+- **Phase 1 — Detection & extraction** · identify repo pages and the rendered
+  README. (done)
+- **Phase 2 — Export via native print** · sanitize, render a print document,
+  produce a PDF through the browser. (done)
+- **Phase 3 — Polish** · settings, themes, paper sizes, status reporting,
+  accessibility, docs. (current)
+- **Phase 4 — Release prep** · extension icons, Chrome Web Store assets,
+  automated tests, and further edge cases.
 
 ## License
 
-No license specified yet.
+License to be decided before the Chrome Web Store submission (see Roadmap).

@@ -1,8 +1,9 @@
 // Print document for README to PDF.
 //
-// Phase 2: this extension page receives a README payload (written to
-// chrome.storage by the popup), sanitizes the imported HTML, renders it, and
-// invokes the browser's native print dialog from this page's own context.
+// Phase 3: reads the export payload (written to chrome.storage by the popup),
+// applies the chosen paper size/theme settings, sanitizes the imported HTML,
+// renders only the README, and invokes the browser's native print dialog from
+// this page's own context.
 //
 // A service worker cannot call window.print(), so printing must happen here.
 
@@ -11,6 +12,12 @@
 
   const EXPORT_KEY = "readme-to-pdf:export";
   const MAX_IMAGE_WAIT_MS = 5000;
+
+  const DEFAULT_SETTINGS = {
+    paperSize: "a4",
+    theme: "light",
+    includeTitle: true,
+  };
 
   // Content tags allowed in the print document. Everything else is either
   // dropped or unwrapped (see cleanTree).
@@ -41,6 +48,7 @@
     ol: new Set(["start"]),
   };
   const GLOBAL_ATTRS = new Set(["title", "colspan", "rowspan"]);
+  const SAFE_ALIGN = new Set(["left", "center", "right", "justify"]);
 
   // ---------------------------------------------------------------------------
   // Sanitization
@@ -65,6 +73,14 @@
       const name = attr.name.toLowerCase();
       if (name.startsWith("on") || name === "style" || name === "class" || name === "id") {
         el.removeAttribute(attr.name);
+        continue;
+      }
+      if (name === "align") {
+        if (SAFE_ALIGN.has(attr.value.toLowerCase())) {
+          el.setAttribute("align", attr.value.toLowerCase());
+        } else {
+          el.removeAttribute(attr.name);
+        }
         continue;
       }
       if (!GLOBAL_ATTRS.has(name) && !allowed.has(name)) {
@@ -123,8 +139,50 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Rendering
+  // Settings + filename
   // ---------------------------------------------------------------------------
+
+  function normalizeSettings(raw) {
+    const result = { ...DEFAULT_SETTINGS };
+    if (raw && typeof raw === "object") {
+      if (raw.paperSize === "letter" || raw.paperSize === "a4") {
+        result.paperSize = raw.paperSize;
+      }
+      if (raw.theme === "light" || raw.theme === "dark") {
+        result.theme = raw.theme;
+      }
+      if (typeof raw.includeTitle === "boolean") {
+        result.includeTitle = raw.includeTitle;
+      }
+    }
+    return result;
+  }
+
+  /** Scrub a filename part down to safe characters for all major OSes. */
+  function sanitizeFilenamePart(value) {
+    return String(value || "")
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[<>\u0022:/\\|?*\u0000-\u001f]/g, "-")
+      .replace(/\s+/g, "-")
+      .replace(/[^a-zA-Z0-9._-]/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^[.-]+|[.-]+$/g, "")
+      .slice(0, 80)
+      .trim();
+  }
+
+  function buildFilename(repo, readme) {
+    const owner = repo && repo.owner ? sanitizeFilenamePart(repo.owner) : "";
+    const name = repo && repo.repo ? sanitizeFilenamePart(repo.repo) : "";
+    let base = [owner, name].filter(Boolean).join("-");
+    if (!base) {
+      base =
+        sanitizeFilenamePart(readme && (readme.name || readme.path)) ||
+        "github-readme";
+    }
+    return `${base || "github-readme"}-readme`;
+  }
 
   function safeSourceUrl(raw) {
     if (typeof raw !== "string") return null;
@@ -139,17 +197,32 @@
     return null;
   }
 
-  function buildFilename(repo) {
-    const nwo = repo && repo.nwo ? repo.nwo : "github-readme";
-    const safe = nwo
-      .replace(/[^a-z0-9._-]+/gi, "-")
-      .replace(/-+/g, "-")
-      .replace(/^-|-$/g, "");
-    return `${safe || "github-readme"}-readme`;
+  /** Apply paper size via @page and switch on the dark theme. */
+  function applySettings(settings) {
+    const isLetter = settings.paperSize === "letter";
+    const paper = isLetter ? "letter" : "A4";
+    const margin = isLetter ? "0.6in" : "16mm";
+
+    const style = document.createElement("style");
+    style.setAttribute("id", "page-size-rule");
+    style.textContent = `@page { size: ${paper}; margin: ${margin}; }`;
+    document.head.appendChild(style);
+
+    if (settings.theme === "dark") {
+      document.documentElement.classList.add("theme-dark");
+    }
   }
+
+  // ---------------------------------------------------------------------------
+  // Rendering
+  // ---------------------------------------------------------------------------
 
   function renderHeader(payload) {
     const header = document.getElementById("doc-header");
+    if (!payload.settings.includeTitle) {
+      return; // keep the header hidden
+    }
+
     const repo = payload.repo || {};
     const readme = payload.readme || {};
 
@@ -176,10 +249,19 @@
     header.hidden = false;
   }
 
+  function renderToolbarInfo(settings) {
+    const info = document.getElementById("toolbar-info");
+    if (!info) return;
+    const paper = settings.paperSize === "letter" ? "Letter" : "A4";
+    const theme = settings.theme === "dark" ? "Dark" : "Light";
+    info.textContent = `\u00b7 ${paper} \u00b7 ${theme} theme`;
+  }
+
   function hardenImages() {
     document.querySelectorAll("#content img").forEach((img) => {
       img.loading = "eager";
       img.decoding = "async";
+      img.referrerPolicy = "no-referrer";
       img.addEventListener(
         "error",
         () => {
@@ -197,8 +279,8 @@
   }
 
   function render(payload) {
-    const repo = payload.repo || {};
-    document.title = buildFilename(repo);
+    document.title = buildFilename(payload.repo, payload.readme);
+    renderToolbarInfo(payload.settings);
     renderHeader(payload);
 
     const content = document.getElementById("content");
@@ -279,9 +361,13 @@
       return;
     }
 
+    // Default settings in the payload so older payloads still render.
+    payload.settings = normalizeSettings(payload.settings);
+    applySettings(payload.settings);
+
     try {
       render(payload);
-    } catch {
+    } catch (error) {
       showError("Something went wrong preparing the document.");
       return;
     }
