@@ -222,4 +222,4 @@ The print document never trusts README HTML:
 
 ## License
 
-[MIT](LICENSE) — Copyright (c) 2026 README to PDF contributors.
+[MIT](LICENSE) — Copyright (c) 2026 README to PDF contributors.# readme-to-pdf
